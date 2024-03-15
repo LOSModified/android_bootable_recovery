@@ -26,6 +26,27 @@
 #include "graphics.h"
 #include "minui/minui.h"
 
+// Xiaomi Pads have one display, but two connectors for it. (fused)
+#define NUM_MAIN 1
+#define NUM_PLANES NUM_MAIN + 1
+
+struct Crtc {
+  drmModeObjectProperties *props;
+  drmModePropertyRes **props_info;
+  uint32_t mode_blob_id;
+};
+
+struct Connector {
+  drmModeObjectProperties *props;
+  drmModePropertyRes **props_info;
+};
+
+struct Plane {
+  drmModePlane *plane;
+  drmModeObjectProperties *props;
+  drmModePropertyRes ** props_info;
+};
+
 class GRSurfaceDrm : public GRSurface {
  public:
   ~GRSurfaceDrm() override;
@@ -59,24 +80,28 @@ class MinuiBackendDrm : public MinuiBackend {
   GRSurface* Init() override;
   GRSurface* Flip() override;
   void Blank(bool) override;
-  void Blank(bool blank, DrmConnector index) override;
-  bool HasMultipleConnectors() override;
 
  private:
-  void DrmDisableCrtc(int drm_fd, drmModeCrtc* crtc);
-  bool DrmEnableCrtc(int drm_fd, drmModeCrtc* crtc, const std::unique_ptr<GRSurfaceDrm>& surface,
-                     uint32_t* conntcors);
+  enum screen_side{Left, Right};
+  int DrmDisableCrtc(drmModeAtomicReqPtr atomic_req);
+  int DrmEnableCrtc(drmModeAtomicReqPtr atomic_req);
   void DisableNonMainCrtcs(int fd, drmModeRes* resources, drmModeCrtc* main_crtc);
-  bool FindAndSetMonitor(int fd, drmModeRes* resources);
+  drmModeConnector* FindMainMonitor(int fd, drmModeRes* resources, uint32_t* mode_index);
+  int SetupPipeline(drmModeAtomicReqPtr atomic_req);
+  int TeardownPipeline(drmModeAtomicReqPtr atomic_req);
+  void UpdatePlaneFB();
+  int AtomicPopulatePlane(int plane, drmModeAtomicReqPtr atomic_req);
 
-  struct DrmInterface {
-    std::unique_ptr<GRSurfaceDrm> GRSurfaceDrms[2];
-    int current_buffer{ 0 };
-    drmModeCrtc* monitor_crtc{ nullptr };
-    drmModeConnector* monitor_connector{ nullptr };
-    uint32_t selected_mode{ 0 };
-  } drm[DRM_MAX];
+  std::unique_ptr<GRSurfaceDrm> GRSurfaceDrms[2];
+  int current_buffer{ 0 };
+  drmModeCrtc* main_monitor_crtc{ nullptr };
+  drmModeConnector* main_monitor_connector{ nullptr };
 
   int drm_fd{ -1 };
-  DrmConnector active_display = DRM_MAIN;
+  bool current_blank_state = true;
+  int fb_prop_id;
+  struct Crtc crtc_res;
+  struct Connector conn_res;
+  struct Plane plane_res[NUM_PLANES];
+  uint32_t number_of_lms;
 };
