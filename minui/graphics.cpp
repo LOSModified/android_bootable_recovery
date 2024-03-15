@@ -541,7 +541,8 @@ void gr_fb_blank(bool blank) {
 }
 
 void gr_fb_blank(bool blank, int index) {
-  gr_backend->Blank(blank, static_cast<MinuiBackend::DrmConnector>(index));
+  (void)index;
+  gr_fb_blank(blank); // Use the base default implementation.
 }
 
 void gr_rotate(GRRotation rot) {
@@ -557,5 +558,5 @@ GRRotation gr_get_rotation() {
 }
 
 bool gr_has_multiple_connectors() {
-  return gr_backend->HasMultipleConnectors();
+  return false;
 }
